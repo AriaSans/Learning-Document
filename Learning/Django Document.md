@@ -76,7 +76,7 @@
 
 （1）项目cmd进入manage.py同目录文件夹运行 `python manage.py startapp app1` 创建app
 
-（2）settings.py 文件中新增app
+（2）settings.py 文件中新增app3
 
 > ```py
 > "settings.py"
@@ -362,6 +362,10 @@ def tpltrain(request):
 (2) `request.path_info`
 
 返回当前的URL地址，例如返回 '/login/'
+
+(3) `request.FILES`
+
+请求发过来的文件
 
 
 
@@ -1529,3 +1533,140 @@ function taskBtnEvent() {
 </script>
 ```
 
+
+
+
+
+---
+
+## 十、ECHARTS图表
+
+> [ECHARTS文档](https://echarts.apache.org/examples/zh/index.html) 获取图表的详细配置方法与图表的模板
+
+#### 1、新建图表
+
+1. 引用 echarts.js 文件
+
+   ```django
+   <script src="{% static 'js/echarts.js' %}"></script>
+   ```
+
+2. 创建div放置图表，注意设置id与大小
+
+   ```django
+   <div id='charts_1' style="width: 100%; height: 25rem"></div>
+   ```
+
+3. 在js中增加控制
+
+   ```django
+   <script type="text/javascript">
+       // 基于准备好的dom，初始化echarts实例
+       var myChart = echarts.init(document.getElementById('charts_1'));		// 切换id
+   
+       ////////////////   主要编辑项目option    /////////////////
+       // 指定图表的配置项和数据
+       var option = {
+           title: {
+               text: 'ECharts 入门示例'
+           },
+           tooltip: {},
+           legend: {
+               data: ['销量']
+           },
+           xAxis: {
+               data: ['衬衫', '羊毛衫', '雪纺衫', '裤子', '高跟鞋', '袜子']
+           },
+           yAxis: {},
+           series: [
+               {
+                   name: '销量',
+                   type: 'bar',
+                   data: [5, 20, 36, 10, 10, 20]
+               }
+           ]
+       };
+   
+       // 使用刚指定的配置项和数据显示图表。
+       myChart.setOption(option);
+   </script>
+   ```
+
+4. 配置 option
+
+   在文档中可以查看配置信息
+
+#### 2、柱状图属性
+
+1. title：
+
+   ```javascript
+   title:{
+       text: '标题'
+       //居中//
+       textAlign: 'auto',
+       left: 'center',
+       //居中//
+   }
+   ```
+
+   
+
+2. legend：
+
+​	增加 bottom：0   -   将标签设置再底下
+
+
+
+
+
+---
+
+## 十一、文件上传
+
+#### 1、基础操作
+
+在form表单中用post方法传递数据，其中form标签需要加入enctype="multipart/form-data"属性
+
+```django
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="text" name="username">
+    <input type="file" name="avatar">
+    <input type="submit" value="提交">
+</form>
+```
+
+```py
+# 'username': ['gogogo']
+print(request.POST)
+
+# {'avatar':[<InMemoryUploadedFile: 舞头2.png (image/png)>]}    // 文件对象
+print(request.FILES)
+file_obj = request.FILES
+return HttpResponse('ggg')
+```
+
+- 保存文件到本地
+
+  ```python
+  file_obj = request.FILES.get('avatar')	// 创建文件对象
+  
+  f = open(file_obj.name, mode='wb')		// 创建一个名字为 file_obj.name 的文件
+  for chunk in file_obj.chunks():			// 循环 file_obj 的每一块，一块一块的放入刚才创建的文件中
+      f.write(chunk)		// 写入
+  f.close()				//关闭
+  
+  return HttpResponse('ggg')
+  ```
+
+  > file_obj 文件对象操作:
+  >
+  > - .name  :  获取文件名
+  > - .chunks( )  :  文件分块
+
+  > 本地文件操作:
+  >
+  > - f = open("name.xxx", mode = 'wb')  :  打开 name.xxx 文件，无则创建
+  > - f.write( )  :  写入
+  > - f.close( )  :  关闭文件
