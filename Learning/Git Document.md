@@ -4,6 +4,8 @@
 
 ![Work stream](pic/Work stream.png)
 
+- add
+
 
 
 ## 二、用户设置
@@ -30,7 +32,9 @@ git config --global user.email 465441650@qq.com
 
 ## 三、初始化项目
 
-#### 1、本地从零创建方法 (init)
+#### 1、本地从零创建方法, 并连接github库 (init, remote)
+
+##### (1) 本地创建 .git 版本控制
 
 需要告诉 Git 这个文件夹需要版本控制 
 
@@ -39,6 +43,48 @@ git config --global user.email 465441650@qq.com
 ```cmd
 git init
 ```
+
+(2) github中创建新仓库，并在本地git中设置连接，并修改分支名
+
+- `git remote 别名 github地址`
+
+  ```cmd
+  git remote origingit https://github.com/AriaSans/Learning-Document	// 别名origingit，注意后面无.git
+  git remote						// 查看连接，增加 -v 可以查看地址
+  
+  // 修改为SSH地址
+  git remote set-url origingit git@github.com:AriaSans/Learning-Document.git
+  ```
+
+- `git branch -m main`
+
+  修改master分支名字为main
+
+  ```cmd
+  git branch -m main				// —M强制变更
+  git config --global init.defaultBranch main			// 设置初始分支名从master变为main
+  ```
+
+(3) 两边文件不一致，从github中pull出文件到本地
+
+- `git pull --rebase 别名 分支名`
+
+  ```cmd
+  git pull --rebase origin main	// 一般pull无法成功，因为两个commit不同，增加--rebase后将本地的commit放在最新
+  ```
+
+(4) 将本地文件push到github，两边完成同步
+
+- `git push 别名 分支名`
+
+  ```cmd
+  git push oringingit main		// 同步到main分支
+  // 注意两边的外部文件名是可以不同的
+  ```
+
+  
+
+
 
 #### 2、github克隆方法 (clone)
 
@@ -110,6 +156,8 @@ git commit -a -m "删库跑路"		 // -a,不用执行add操作直接提交，添�
 
 （4）输入 `:wq` 退出 vim 界面
 
+> 如果想关联 issues ，在编辑版本信息时可以增加 `#issues_id` 的内容，则在github中会显示为可跳转的标签 (如#1)
+
 
 
 #### 3、忽略文件 (.gitignore)
@@ -173,6 +221,8 @@ git diff orgin/main
 
 ```cmd
 git pull
+git pull origin main			// 爬取特定分支
+git pull -u origin main			// 设置为默认，之后 git pull 都是该分支
 ```
 
 
@@ -196,15 +246,28 @@ git checkout -b branchgo1			  // 创建并且马上切换到新分支
 
 
 
-#### 2、切换分支(checkout)
+#### 2、切换分支/切换分支点(checkout)
 
-`git checkout 分支名`
+- `git checkout 分支名`
 
 切换到其他分支，文件直接从master主支复制
 
 ```cmd
 git checkout branchgo1
 ```
+
+
+
+- `git checkout 分支点的hash码`
+
+切换到某个分支点的文件，用于返回以前版本，hash码可以通过github或者 `git log` 获得
+
+```cmd
+git checkout 65110724f38d8ce6a71ca48934218de0065b1aef		// 回到某个版本
+git checkout main				// 返回分支最终点
+```
+
+
 
 
 
@@ -233,6 +296,26 @@ git merge temp						// temp和master汇为一支
 ```
 
 > 如果合并前master比分出temp分支的版本点又写了一个内容，在temp分支中是没有的，则会出现错误
+
+
+
+#### 6、打标签 (tag)
+
+`git tag -a v1.0.0 -m "v1.0.0大功告成"`
+
+为当前的分支点打一个标签，作为阶段性的发表
+
+```cmd
+git tag -a v1.0.0 -m "v1.0.0大功告成"			// -a:注解  -m:详细信息
+
+git tag					// 查看tag
+
+git push origin v1.0.0			// 推送到github，注意推送的分支名为tag名
+```
+
+
+
+
 
 
 
