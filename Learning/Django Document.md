@@ -1,5 +1,11 @@
 # Django Document
 
+
+
+## 目录
+
+[TOC]
+
 ## 一、项目
 
 #### 1、创建项目
@@ -76,7 +82,7 @@
 
 （1）项目cmd进入manage.py同目录文件夹运行 `python manage.py startapp app1` 创建app
 
-（2）settings.py 文件中新增app3
+（2）settings.py 文件中新增app
 
 > ```py
 > "settings.py"
@@ -95,10 +101,11 @@
 > ...
 > ```
 
-（3）`app1/` 下新建`static`，`templates`文件夹，其中
+（3）`app1/` 下新建`static`，`templates`文件夹，在 `managy.py` 同目录下创建 `media` 文件夹，其中：
 
 - static：创建如下文件夹，分别放入静态文件
 - templates：放入html文件
+- media : 存放用户上传的文件，需要在 urls.py 与 settings.py 中[配置](#####(4) media 文件夹)
 
 
 
@@ -217,10 +224,39 @@ def yolopage1def(request):
 
 >  其与代码中对应的路径修改位置为 `settings.py` 中的 `STATIC_URL = 'static/'` ，后期需要修改文件位置时只需在此处修改即可
 >
-> ```py
-> "setting.py"
-> STATIC_URL = 'static/'
-> ```
+>  ```py
+>  "setting.py"
+>  STATIC_URL = 'static/'
+>  ```
+
+
+
+##### (4) media 文件夹
+
+放置用户上传的文件，在 urls.py 与 settings.py 中进行配置
+
+```py
+"urls.py"
+from diango.urls import path, re_path
+from django.views.static import serve
+from django.conf import settings
+
+urlpatterns = [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}, name='media'),
+]
+```
+
+```py
+"settings.py"
+import os
+
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+MEDIA_URL = "/media/"
+```
+
+
+
+
 
 
 
@@ -1129,7 +1165,7 @@ Django可以提供模板继承功能大幅度减少重复html文件的编写，�
 
 ---
 
-## 七、文件分类
+## 七、文件分离
 
 如果 "views.py" 文件较大可以将其拆分
 
@@ -1454,7 +1490,57 @@ function taskBtnEvent() {
 
 > `$("id_form")` 为jQuery对象，加上`[0]`为DOM对象，`.reset`是DOM方法
 
-#### 6、弹窗（Modal）
+
+
+#### 6、FormData 传递ajax信息方法
+
+在传递信息时，data一般选择字典来传递信息，但遇到文件数据时字典无法传递，可以使用 FormDara 方法自行创建对象传入
+
+！ *注意在这个方法中需要在ajax请求中将 processData 和 contentType 均设置为false*
+
+```javascript
+function BindBtnUpload() {
+            $("#btn_upload").click(function () {
+                $(".error-msg").empty()
+                // 1.创建一个 FormData 对象
+                var formData = new FormData();
+
+                // 2.获取文件输入框中的文件
+                var fileInput = document.getElementById('id_img');
+                formData.append('img', fileInput.files[0]);
+                
+                // 3.获取文本输入框中的数据
+                formData.append('name', $("#id_name").val())
+                formData.append('count', $("#id_count").val())
+
+                $.ajax({
+                    url: '/upload/modelform/',
+                    type: 'post',
+                    data: formData,
+                    dataType: "JSON",
+                    processData: false,  // 4.不对 data 进行序列化处理	!!!
+                    contentType: false,  // 5.不设置 content-type	!!!
+                    success: function (res) {
+                        if (res.status) {
+                            console.log('上传成功');
+                            $("#UploadModal").modal('hide');
+                            location.reload();
+                        } else {
+                            console.log('上传失败');
+                            $.each(res.errors, function (name, error) {
+                                $("#id_" + name).next().text(error)
+                            })
+                        }
+                    }
+
+                })
+            })
+        }
+```
+
+
+
+#### 7、弹窗（Modal）
 
 - 方法一：
 
@@ -1510,7 +1596,7 @@ function taskBtnEvent() {
   > - ('show')  -  打开弹窗
   > - ('hide')  -  关闭弹窗
 
-#### 7、全局变量
+#### 8、全局变量
 
 在 `<script>` 中可以添加一个全局变量，在进行js操作时可以为该变量赋值或者调用这个值 
 
@@ -1670,3 +1756,139 @@ return HttpResponse('ggg')
   > - f = open("name.xxx", mode = 'wb')  :  打开 name.xxx 文件，无则创建
   > - f.write( )  :  写入
   > - f.close( )  :  关闭文件
+
+
+
+#### 2、excel操作
+
+##### 从excel中获取数据到python
+
+```py
+from openpyxl import load_workbook
+
+# 1.获取用户上传的文件对象
+file_object = request.FILES.get("exc")    # "exc"为input框中的name属性
+
+# 2.对象传递给openpyxl，由openpyxl读取文件的内容
+wb = load_workbook(file_object)
+sheet = wb.worksheets[0]
+
+# 3.1获取表格单个位置
+cell = sheet.cell(1,2)			# 获取第一行第二列的数据
+print(cell.value)
+
+# 3.2循环获取每一行数据
+for row in sheet.iter_rows(min_row=2):		# 获取从第二行开始的数据，返回的row为一行的列表
+    print(row[0].value)
+```
+
+
+
+#### 3、Form方法 (表单检查)
+
+1. 定义class form，其中上传框用forms.FileField
+
+   ```py
+   class UpForm:
+       Bootstrap_exclude_field = ['img']
+       
+       name = forms.CharFiled(label="名字")
+       age = forms.IntegerFiled(label="年龄")    
+       name = forms.FileFiled(label="头像")    
+   ```
+
+2. 获取form对象时不仅需要 data=request.POST ，还需要 files=request.FILES
+
+   ```py
+   def upload_form(request):
+   	if request.method == "GET":
+           form = UpForm()
+           return render(request, 'upload_form.html', {"form":form})
+       
+       form = UpForm(data=reuqest.Post, files=request.FILES)
+       if form.is_valid():
+           avatar_obj = form.cleaned_data.get('avatar')
+           name = form.cleaned_data.get('name')
+           age = form.cleaned_data.get('age')
+   
+           # 读取路径方法一：
+           db_file_path = os.path.join('media', avatar_obj.name)
+           file_path = os.path.join(db_file_path)
+           
+           # 读取路径方法二：（配置完media后）
+           from django.conf import settings
+           file_path = os.path.join(settings.MEDIA_ROOT, avatar_obj.name)		# 绝对路径
+           file_path = os.path.join("media", avatar_obj.name)				 	# 相对路径
+           
+   
+           # 文件存放
+           f = open(file_path, 'wb')
+           for chunk in avatar_obj.chunks():
+               f.write(chunk)
+           f.close()
+   
+           # 数据库操作
+           models.Userdata.objects.create(name=name, age=age, avatar=db_file_path)
+   
+           return HttpResponse('上传成功')
+   
+       return render(request, 'upload_form.html', {'form': form, 'errors': form.errors})
+           
+   ```
+
+
+
+#### 4、ModelForm方法 (表单检查，文件保存)
+
+使用 ModelForm 方法可以跳过创建文件写入的过程 ，需要先配置完media
+
+1. 定义 models.py , 文件类型为 `FileField( )`
+
+   ```py
+   "models.py"
+   class City(models.Model):
+       name = models.CharField(verbose_name = "名称", max_length=32)
+       count = models.IntegerField(verbose_name = "人口")
+       
+       # 本质上数据库上也是CharField，自动保存数据。
+       img = models.FileField(verbose_name = "logo", max_length=128, upload_to='city/')    
+       # upload_to='city/' : 文件保存到 'media/city/' 目录下
+   ```
+
+2. 定义 class ModelForm，方法与一般数据相同
+
+   ```py
+   class UploadModelForm(BootstrapModelForm):
+       class Meta:
+           model = models.City
+           fields = '__all__'
+   ```
+
+3. 编写def，方法与一般数据相同，除了获取数据后的实例化除了 data=request.POST 还需要 files=request.FILES
+
+   ```python
+   def upload_modelform(request):
+       form = UploadModelForm()
+       if request.method == 'GET':
+           return render(request, 'upload_modelform.html', {'form': form})
+   
+       form = UploadModelForm(data=request.POST, files=request.FILES)		# 唯一不同点
+       if form.is_valid():
+           form.save()
+           return HttpResponse('上传成功')
+       return render(request, 'upload_modelform.html', {'form': form, 'errors': form.errors})
+   ```
+
+
+
+---
+
+教程视频：https://www.bilibili.com/video/BV1rT4y1v7uQ?p=1
+
+练习项目：https://github.com/AriaSans/Django_train
+
+---
+
+初稿结束时间：2024-4-2 18:03		- v 1.0.0
+
+更新：增加了 [FormData 传递ajax信息方法](####6、FormData 传递ajax信息方法)		- 2024-4-2 21:30
