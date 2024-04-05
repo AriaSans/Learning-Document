@@ -348,37 +348,58 @@ def tpltrain(request):
 
 #### 1、请求类别
 
-- GET 请求，在url中通过 path1/path2/*<u>?n1=123&n2=444</u>* 传递数据
+##### （1）GET 请求
 
-  > request.GET ->  <QueryDict: {'q': ['888'], 'xx': ['123'], 'bbn': ['999']}  （返回字典）
-  >
-  > request.GET.urlenconde( ) -> q=888&xx=123&bbn=999    （返回url中？后跟内容）
+在url中通过 path1/path2/*<u>?n1=123&n2=444</u>* 传递数据
 
-- POST 请求，隐藏传递数据
+> request.GET ->  <QueryDict: {'q': ['888'], 'xx': ['123'], 'bbn': ['999']}  （返回字典）
+>
+> request.GET.urlenconde( ) -> q=888&xx=123&bbn=999    （返回url中？后跟内容）
 
-  >  "views.py" 的 def 中通过 request.method 获取该 def 的请求方法
+##### （2）POST 请求
 
-- ajax 请求，页面不刷新
+隐藏传递数据
 
-  - 依赖jQuery
+>  "views.py" 的 def 中通过 request.method 获取该 def 的请求方法
 
-  - 编写ajax代码
+##### （3）ajax 请求
 
-    ```javascript
-    $.ajax({
-        url: "发送的地址",
-        type: "get/post",
-        data:{
-            n1:123,
-            n2:234,
-        },					# 发送的数据
-        success:function(res){
-        	console.log(res);	# 返回的数据
-    	}
-    })
-    ```
+页面不刷新
 
-    
+- 依赖jQuery
+
+- 编写ajax代码
+
+  ```javascript
+  $.ajax({
+      url: "发送的地址",
+      type: "get/post",
+      data:{
+          n1:123,
+          n2:234,
+      },					# 发送的数据
+      success:function(res){
+      	console.log(res);	# 返回的数据
+  	}
+  })
+  ```
+
+
+
+
+##### 修改request请求（GET例）
+
+在原本情况下request.GET是不能直接修改的，如果要使用到 request.GET.urlenconde() 并对其增加内容，可以使用深拷贝的方法
+
+```py
+import copy
+query_dict = copy.deefcopy(request.GET)
+query_dict = _mutable = True
+query_dict.setlist('page', [11])		# 注意后面的值用[]包裹, 相当于增加了GET请求page=11
+print(query_dict.urlencode())
+```
+
+
 
 
 
@@ -788,7 +809,7 @@ def tpltrain(request):
      > `r'^正则表达式内容&'`，此处的正则表达式意义为 1+（3-9）任意一个数字+9个数字 
      >
      > `self.cleaned_data['字段']` 获取输入框的字段并可以返回
-     > `self.cleaned_data.pop('字段')` 获取并删除该字段，一半用于与session检测时的临时数据剔除
+     > `self.cleaned_data.pop('字段')` 获取并删除该字段，一般用于与session检测时的临时数据剔除
      >
      > `self.instance.pk` 获取instance输入对象的primarykey，一般为id
   
@@ -1840,7 +1861,7 @@ for row in sheet.iter_rows(min_row=2):		# 获取从第二行开始的数据，�
 
 #### 4、ModelForm方法 (表单检查，文件保存)
 
-使用 ModelForm 方法可以跳过创建文件写入的过程 ，需要先配置完media
+使用 ModelForm 方法可以跳过创建文件写入的过程 ，需要先[配置完media](######(4) media 文件夹)
 
 1. 定义 models.py , 文件类型为 `FileField( )`
 
@@ -1878,6 +1899,21 @@ for row in sheet.iter_rows(min_row=2):		# 获取从第二行开始的数据，�
            return HttpResponse('上传成功')
        return render(request, 'upload_modelform.html', {'form': form, 'errors': form.errors})
    ```
+
+> 创建动态的path表
+>
+> ```py
+> import os
+> from django.db import models
+> 
+> def dynamic_upload_to(instance, filename):
+>     # 指定上传文件的存储路径
+>     return os.path.join('uploads', instance.user.username, filename)
+> 
+> class YourModel(models.Model):
+>     user = models.ForeignKey(User, on_delete=models.CASCADE)
+>     file = models.FileField(upload_to=dynamic_upload_to)
+> ```
 
 
 
