@@ -288,32 +288,38 @@ def tpltrain(request):
 - 单数据，HTML 中通过 {{ dname }} 获取
 - 列表，HTML 中通过{{ dlist.0 }} 获取  *(从0开始)*
 - 字典，HTML 中通过{{ d1.name }} 获取
+- JSON，views 函数中通过 `json.dumps(字典/数列)` 传递到HTML，js 中通过 `JSON.parse('{{ json_info_list|escapejs }}')`获取
 
 *（多层包含可通过{{ dlist.0.0.name }}获取）*
 
 > 实例:
 > ```django
 > <ul>
->  <li>{{ dname }}</li>
->  <li>{{ dage }}</li>
->  <li>3333</li>
->  <li>=======</li>
->  <li>{{ dlist.0.0 }}</li>
->  <li>{{ dlist.1.1 }}</li>
->  <li>{{ dlist.2.2 }}</li>
->  <li>=======</li>
->  {% for item in dlist %}
->  <li>{{ item.0 }}+{{ item.1 }}+{{ item.2 }}</li>
->  {% endfor %}
->  <li>=======</li>
->  <li>{{ ddict.name }} = {{ ddict.age }}
->      {% if ddict.sex == 1 %}
->      是楠
->      {% elif ddict.sex == 0 %}
->      是缕
->      {% endif %}
->  </li>
+> <li>{{ dname }}</li>
+> <li>{{ dage }}</li>
+> <li>3333</li>
+> <li>=======</li>
+> <li>{{ dlist.0.0 }}</li>
+> <li>{{ dlist.1.1 }}</li>
+> <li>{{ dlist.2.2 }}</li>
+> <li>=======</li>
+> {% for item in dlist %}
+> <li>{{ item.0 }}+{{ item.1 }}+{{ item.2 }}</li>
+> {% endfor %}
+> <li>=======</li>
+> <li>{{ ddict.name }} = {{ ddict.age }}
+>   {% if ddict.sex == 1 %}
+>   是楠
+>   {% elif ddict.sex == 0 %}
+>   是缕
+>   {% endif %}
+> </li>
 > </ul>
+> 
+> <script type="text/javascript">
+> 	var info_list = JSON.parse('{{ json_info_list|escapejs }}')   // 注意 |escapejs
+> </script>
+>     
 > ```
 >
 > > 注意：如果内部需要用到( )，不需自己加( )，模板语法会自动增加( )
@@ -928,8 +934,72 @@ CREATE TABLE app1_member(
 - 数据类型：
 
   - DecimalField(max_digits=10, decimal_places=2) : 最大长度为10，小数后2位
+
   - DateTimeField( ) : 时间，从数据库读取时间时为datetime类型，使用 `.strftime("%Y-%m-%d-%H-%M")` 转化为字符串，如果是在HTML文件中的模板语法，使用 `{{ obj.create_time|date:"Y-m-d H:i:s" }}`
+
   - DateField( ) : 时间，但只有年月日
+
+  - JSONField( ) : json文件，可以放置数列与字典
+
+    > JSONField操作
+    >
+    > 1. 创建
+    >
+    >    ```py
+    >    data = models.JSONField()		# 无需额外属性
+    >    ```
+    >
+    > 2. 存入
+    >
+    >    - 直接存入
+    >
+    >      ```py
+    >      mymodel_instance = MyModel.objects.create(name='example', data=[1, 2, 3])
+    >      
+    >      # 或者
+    >      mymodel_instance.data = [4, 5, 6]
+    >      mymodel_instance.save()
+    >      ```
+    >
+    >    - 转化成json存入（字典）
+    >
+    >      ```py
+    >      # 创建一个字典，包含属性和对应的值
+    >      data_dict = {'case1': 1, 'case2': 2, 'case3': 3}
+    >        
+    >      # 将字典序列化为 JSON 字符串
+    >      json_data = json.dumps(data_dict)
+    >        
+    >      # 创建模型对象并保存到数据库中
+    >      your_model_instance = YourModel.objects.create(data=json_data)
+    >      ```
+    >
+    > 3. 查找
+    >
+    >    - 查找字典属性
+    >
+    >      ```py
+    >      # 查询包含指定属性的行
+    >      result = MyModel.objects.filter(json_data__has_key='property_name')
+    >      ```
+    >
+    >    - 查找字典属性值
+    >
+    >      ```py
+    >      # 查询具有特定属性值的行
+    >      result = MyModel.objects.filter(json_data__property_name='value')
+    >      ```
+    >
+    > 4. 统计
+    >
+    >    - 某个属性的总值
+    >
+    >      ```py
+    >      # 对属性值进行聚合操作，例如统计每个属性值的数量
+    >      result = MyModel.objects.annotate(property_count=Count('json_data__property_name'))
+    >      ```
+    >
+    >      
 
 - 约束：
 
