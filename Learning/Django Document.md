@@ -367,6 +367,8 @@ def tpltrain(request):
 隐藏传递数据
 
 >  "views.py" 的 def 中通过 request.method 获取该 def 的请求方法
+>
+>  request.POST.getlist('List_name[]') : 获取POST请求中的名为List_name的列表
 
 ##### （3）ajax 请求
 
@@ -966,10 +968,10 @@ CREATE TABLE app1_member(
     >      ```py
     >      # 创建一个字典，包含属性和对应的值
     >      data_dict = {'case1': 1, 'case2': 2, 'case3': 3}
-    >        
+    >                
     >      # 将字典序列化为 JSON 字符串
     >      json_data = json.dumps(data_dict)
-    >        
+    >                
     >      # 创建模型对象并保存到数据库中
     >      your_model_instance = YourModel.objects.create(data=json_data)
     >      ```
@@ -1471,6 +1473,8 @@ def task_ajax(request):
 - id选取： `$("#id_tag")`   通过#指定id
 - class选取： `$(".class_tag")`   通过. 指定class
 - 标签tag合并： `$("#id_" + name)`  直接通过 + 字符串  来进行id的合并
+- 选取子标签：`$("#id_xx ul ol")`  选取id为id_xx的标签下的所有ul标签中的所有ol标签
+- this后再选子标签: `$(this).find("ul ol")`  选取this中的同上标签
 
 
 
@@ -1709,6 +1713,19 @@ function BindBtnUpload() {
 
 </script>
 ```
+
+#### 9、创建标签
+
+可以在jQuery中新建标签并且插入到选择器中
+
+```js
+var tag = $("<div>");
+tag.text('你好')
+
+$("#message").append(tag);		// 在id=message的标签内部增加
+```
+
+
 
 
 
@@ -1987,9 +2004,481 @@ for row in sheet.iter_rows(min_row=2):		# 获取从第二行开始的数据，�
 
 
 
+
+
+---
+
+## 十二、WebSocket
+
+#### 1、http协议特点（短连接）
+
+![image-20240415090603425](pic/image-20240415090603425.png)
+
+#### 2、实时为多个用户更新数据方法（服务端主动向客户端推送消息）
+
+1. 轮询
+2. 长轮询
+3. websocket
+
+##### 2.1 轮询
+
+- 访问 /home/ 显示的聊天室界面
+- 点击发送内容，数据也可以发送到后台
+- 定时获取消息，再在界面上展示
+
+##### 2.2 长轮询
+
+![image-20240415094721840](pic/image-20240415094721840.png)
+
+
+
+- 访问 /home/ 显示的聊天室界面。+ 每个用户创建一个队列
+- 点击发送内容，数据也可以发送到后台。 + 扔到每个人的队列中
+- 递归获取消息，去自己的队列中获取数据，然后在界面上展示
+
+问题：
+
+- 服务端持有这个链接，压力是否会很大
+
+  > 如果即基于IO多复用 + 异步，会小
+
+- 100线程，同时100个用户的请求。（15分钟），再多会进行排队
+
+
+
+#### 3、WebSocket简介
+
+websocket, web版的 socket
+
+原来Web中：
+
+- http 协议，无状态短链接
+  - 客户端主动连接服务端
+  - 客户端向服务端发送i西澳西，服务的短接收到返回数据
+  - 客户端接收到数据
+  - 断开连接
+- https 协议 + 对数据进行加密
+
+我们再开发过程中想要保留一些状态信息，基于 Cookie 来做
+
+
+
+现在支持：
+
+- http 协议，一次请求一次响应
+- websocket协议， 创建持久的连接不断开，基于这个连接可以进行收发数据
+
+##### 原理：
+
+- http 协议
+
+  - 连接
+  - 数据传输
+  - 断开连接
+
+- websocket 协议，是建立在 http 协议之上的
+
+  - 连接，客户端发起
+
+  - 握手（验证），客户端发送一个消息，后端接收到消息再做一些特殊处理并返回。服务端支持 websocket 协议。
+
+    - 客户端向服务端发送
+
+      ```
+      GET /chatsocket HTTP/1.1
+      Host: 127.0.0.1:8002
+      Connection: Upgrade
+      Pragma: no-cache
+      Cache-Control: no-cache
+      Upgrade: websocket
+      Oringin: http://localhost:63342
+      Sec-WebSocket-Version: 13
+      Sec-WebSocket-Key: mnwFxiOlctXPN/DeMtlAmg==
+      Sec_WebSocket_Extensions: permessahe-deflate; client_max_window-bits
+      ...
+      ...
+      \r\n\r\n
+      ```
+
+    - 服务端接收
+
+      ```
+      mnwFxiOlctXPN/DeMtlAmg== 与 magic string 进行拼接
+      magic string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"  (固定的)
+      
+      v1 = "mnwFxiOlctXPN/DeMtlAmg==" + magic string
+      v2 = hmac1(v1)     加密
+      v3 = base64(v2)	   加密
+      ```
+
+      ```
+      HTTP/1.1 101 Switching Protocols
+      Upgrade: websocket
+      Connection: Upgrade
+      Sec-WebSocket-Accept: v3密文     (用户接收对比相同则验证通过构成连接)
+      ```
+
+      
+
+  - 收发数据（加密）
+
+    ```
+    b"dqwefqidcj901	2djooxwwaj9d-[ qk ope[qk2-[x0k3-[q23k-0kdqjow;coqwe]]]]"
+    ```
+
+    - 先获取第2个字节，8位		10001010
+
+    - 再获取第2个字节的后7位              0001010  -> payload len
+
+      -   =127，2字节，8个字节，	其他字节 (4字节 masking key + 数据)
+      -   =126，2字节，2个字节，	其他字节 (4字节 masking key + 数据)
+      - <=125，2字节，	                 其他字节 (4字节 masking key + 数据)
+
+    - 获取 masking key ，然后对数据进行解密
+
+      ```
+      var DECODED = "";
+      for (var i = 0; i < ENCODED.length; i++) {
+      	DECODED[i] = ENCODED[i] ^ MAXK[i % 4];
+      }
+      ```
+
+  - 断开连接
+
+
+
+### 4、Django 框架应用 (Django Channels)
+
+#### 1. 配置
+
+django 默认不支持 websocket，需要安装组件
+
+```py
+pip install channels
+```
+
+1. settings 中注册app
+
+   ```py
+   INSTALLED_APPS = [
+       'django.contrib.admin',
+       'django.contrib.auth',
+       'django.contrib.contenttypes',
+       'django.contrib.sessions',
+       'django.contrib.messages',
+       'django.contrib.staticfiles',
+       'memberapp.apps.MemberappConfig',
+       'channels',
+   ]
+   ```
+
+2. settings 中增加 ASGI_APPLICATION
+
+   ```py
+   ASGI_APPLICATION = 'django_train_1.asgi.application'
+   ```
+
+3. 修改 asgi.py 文件
+
+   ```py
+   import os
+   
+   from channels.routing import ProtocolTypeRouter, URLRouter
+   from django.core.asgi import get_asgi_application
+   
+   from . import routing
+   
+   os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_train_1.settings')
+   
+   # application = get_asgi_application()
+   
+   # 支持http和websocket协议
+   application = ProtocolTypeRouter({
+       "http": get_asgi_application(),     # 自动找urls.py，找视图函数views.py  --> http
+       "websocket": URLRouter(routing.websocket_urlpatterns)   # routing(urls) 、consumers (views)
+   })
+   
+   ```
+
+4. 在 settings.py 同级目录下创建 routing.py
+
+   ```py
+   from django.urls import re_path
+   
+   from memberapp import consumers
+   
+   websocket_urlpatterns = [
+       re_path(r'ws/(?P<group>\w+)/$', consumers.ChatConsumer.as_asgi()),
+   ]
+   ```
+
+5. 在 memberapp下创建 consumers.py，编写处理websocket的业务逻辑
+
+   ```py
+   from channels.generic.websocket import WebsocketConsumer
+   from channels.exceptions import StopConsumer
+   
+   
+   class ChatConsumer(WebsocketConsumer):
+       def websocket_connect(self, message):
+           # 有客户端来向后端发送websocket连接的请求时，自动触发
+           # 服务端允许和客户端创建连接
+           self.accept()
+   
+       def websocket_receive(self, message):
+           # 浏览器基于websocket向后端发送数据，自动出发接收消息
+           print(message)
+           self.send(text_data=message)
+           # self.close()
+   
+       def websocket_disconnect(self, message):
+           # 客户端与服务端断开连接时，自动触发
+           print("断开连接")
+           raise StopConsumer()
+   ```
+
+在django中要了解的：
+
+- wsgi，在前面都是使用wsgi
+
+- asgi，wsgi+异步+websocket
+
+  ![image-20240415112535778](pic/image-20240415112535778.png)
+
+
+
+#### 2. 创建连接使用
+
+客户端向服务端发送websocket请求，服务端收到连接后通过（握手）
+
+##### (1) 连接
+
+- 客户端，发送websocket连接请求
+
+```js
+"xxx.html"
+<scripy>
+	socket = new WebSocket("ws://127.0.0.1:8000/room/123");		// 注意前面的协议ws
+</scripy>
+```
+
+- 服务端，找到对应的consumer函数执行connect函数
+
+##### (2) 收发数据 (客户端发送服务端)
+
+- 客户端，发送数据
+
+```django
+"xxx.html"
+<scripy>
+	socket = new WebSocket("ws://127.0.0.1:8000/room/123/");		// 注意前面的协议ws
+    
+    function sendMessage() {
+    	let tag = document.getElementById('txt')
+    	socket.send(tag.value)		# 将tag的值发送到服务端函数中
+    }
+</scripy>
+```
+
+- 服务端，接收数据
+
+```py
+class ChatConsumer(WebsocketConsumer):
+    def websocket_connect(self, message):
+        print('有人来连接了')
+        # 有客户端来向后端发送websocket连接的请求时，自动触发
+        # 服务端允许和客户端创建连接
+        self.accept()
+    
+    def websocket_receive(self, message):
+        # 浏览器基于websocket向后端发送数据，自动出发接收消息
+        print(message)		# {'type': 'websocket.receive', 'text': 'xxxxx'}
+        text = message['text']
+        print(text)
+        self.send(text_data=message)
+        # self.close()
+```
+
+##### (3) 收发数据 (服务端发送客户端)
+
+- 服务端，发送信息用self.send('xxxx')
+
+```py
+class ChatConsumer(WebsocketConsumer):
+    def websocket_connect(self, message):
+        print('有人来连接了')
+        # 有客户端来向后端发送websocket连接的请求时，自动触发
+        # 服务端允许和客户端创建连接
+        self.accept()
+        
+        self.send('来了啊')
+        
+    def websocket_receive(self, message):
+        # 浏览器基于websocket向后端发送数据，自动出发接收消息
+        print(message)		# {'type': 'websocket.receive', 'text': 'xxxxx'}
+        text = message['text']
+        if text == "关闭"
+        	# 服务端主动断开连接，会向客户端发送一个断开连接的信息，客户端执行socket.onclose
+        	self.close()
+            raise StopConsumer()	# 如果额外执行这个命令，则不会执行disconnect函数
+            return
+        
+        res = "{}GOGO".format(text)
+        self.send(res)
+        # self.close()
+        
+     def websocket_disconnect(self, message):
+        # 客户端与服务端断开连接时，自动触发
+        print("断开连接")
+        raise StopConsumer()
+```
+
+- 客户端，接收数据用 socket.onmessage = function(event){}，内部用event.data 获取数据
+
+```html
+"xxx.html"
+<scripy>
+	socket = new WebSocket("ws://127.0.0.1:8000/room/123");		// 注意前面的协议ws
+    
+    // 创建好连接后自动触发，（服务端执行self.accept()）	回调1
+    socket.onopen = function (event) {
+		let tag = document.createElement("div");
+    	tag.innerText = "[连接成功]";
+    	document.getElementById("message").appendChild(tag)
+    }
+    
+    // 当websocket接收到服务端发来的信息时，自动触发这个函数  （服务端执行self.send()）	回调2
+    socket.onmessage = function (event) {
+    	console.log(event.data);
+    }
+    
+    // 服务端主动和客户端断开连接时，这个回调函数会触发 （服务端执行self.close()）	回调3
+    socket.onclose = function (event) {
+    	let tag = document.createElement("div");
+    	tag.innerText = "[断开连接]";
+    	document.getElementById("message").appendChild(tag)
+    }
+    
+    function sendMessage () {
+    	let tag = document.getElementById('txt')
+    	socket.send(tag.value)		// 将tag的值发送到服务端函数中
+    }
+    
+    function cloaseConn () {
+    	socket.close();  // 向服务端发送断开连接的请求
+    }
+    
+</scripy>
+```
+
+##### (4) 与其他用户连接
+
+- 原始方法，在consumers文件上添加全局变量列表，用于存储每个用户的连接
+
+```py
+CONN_LIST = []
+
+class ChatConsumer(WebsocketConsumer):
+    def websocket_connect(self, message):
+        print('有人来连接了')
+        CONN_LIST.append(self)		# 添加用户到列表中
+        self.accept()
+        
+        self.send('来了啊')
+        
+    def websocket_receive(self, message):
+        print(message)		
+        text = message['text']
+        if text == "关闭"
+        	self.close()
+            raise StopConsumer()	
+            return
+        
+        res = "{}GOGO".format(text)
+        for conn in CONN_LIST:
+            conn.send(res)				# 为每个用户发送信息
+        
+        self.send(res)
+        # self.close()
+        
+     def websocket_disconnect(self, message):
+        print("断开连接")
+        CONN_LIST.remove(self)			# 在用户列表中剔除
+        raise StopConsumer()
+```
+
+- Django channels方法，使用channel layers实现
+
+  - 配置：在settings中进行配置
+
+    ```py
+    CHANNEL_LAYERS = {
+        'default': {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
+    ```
+
+    > 或者用redis
+
+    ```
+    pip install channels-redis
+    ```
+
+    ```py
+    CHANNEL_LAYERS = {
+        'default': {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+            "CONFIG": {
+                "hosts": [('10.211.55.25', 6379)]
+            },
+        },
+    }
+    ```
+
+  - consumers函数，增加用户组的概念
+
+    ```py
+    from asgiref.sync import async_to_sync			# 转异步为同步
+    
+    class ChatConsumer(WebsocketConsumer):
+        def websocket_connect(self, message):
+            self.accept()
+            
+            # 获得群号，获得路由匹配中的
+            # ws://.../room/123123123/, 得123123123
+            group = self.scope['url_route']['kwargs'].get("group")
+            
+            # 将这个可无端得连接对象加入到某个地方 （内存 or redis）
+            asyanc_to_sync(self.channel_layer_group_add)(group, self.channel_name)
+            
+        def websocket_receive(self, message):
+            group = self.scope['url_route']['kwargs'].get("group")
+            
+            # 通知组内得所有客户端，执行 xx_oo 方法，在此方法中可以去定义任意得功能
+            asyanc_to_sync(self.channel_layer_group_send)(group, {'type': 'xx.oo', 'message': ,message})
+            
+         def xx_oo(self,event):
+            text = event['message']['text']
+            self.send(text)
+            
+         def websocket_disconnect(self, message):
+            group = self.scope['url_route']['kwargs'].get("group")
+            
+            # 从组内移除
+            asyanc_to_sync(self.channel_layer_group_discard)(group, self.channel_name)
+            raise StopConsumer()
+    ```
+
+    
+
+
+
 ---
 
 教程视频：https://www.bilibili.com/video/BV1rT4y1v7uQ?p=1
+
+​		   https://www.bilibili.com/video/BV1J44y1p7NX/   （WebSocket）
 
 练习项目：https://github.com/AriaSans/Django_train
 
@@ -1998,3 +2487,6 @@ for row in sheet.iter_rows(min_row=2):		# 获取从第二行开始的数据，�
 初稿结束时间：2024-4-2 18:03		- v 1.0.0
 
 更新：增加了 [FormData 传递ajax信息方法](####6、FormData 传递ajax信息方法)		- 2024-4-2 21:30
+
+​	    增加了 [WebSocket](####6、FormData 传递ajax信息方法)		- 2024-4-15 21:30
+
