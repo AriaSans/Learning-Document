@@ -456,3 +456,26 @@ git config --global https.proxy
 > 提示：
 > Windows大概在C:\Windows\System32\drivers\etc下
 > Mac在/etc下，打开访达后,在键盘上按Shift+Command+G组合键，在窗口中输入/etc/hosts ，即可到达hosts文件的所在位置
+
+
+
+#### 解决方案三：使用SSH方法取代HTTP方法，同时配置代理端口
+
+[github SSH pull/push 连接超时/连接失败解决方案](https://www.bilibili.com/video/BV1qp421Z7Ge/)
+
+~/.ssh/config 配置:
+
+```cmd
+// 使用22端口
+Host github.com
+	ProxyCommand "D:\Git\mingw64\bin\connect.exe" -S 127.0.0.1:7890 %h %p	// 注意代理端口
+	
+// 使用443端口
+Host github.com
+	HostName ssh.github.com
+	User git
+	Port 443
+	
+// 可以两个一起使用
+```
+
