@@ -26,13 +26,13 @@
 
 ### 1、Svelte基础
 
-![image-20251107145956902](C:/Users/Tek44/AppData/Roaming/Typora/typora-user-images/image-20251107145956902.png)
+![image-20251107145956902](pic/image-20251107145956902.png)
 
 
 
 ### 2、Tauri基础（Tauri，Svelte，TypeScript）
 
-![image-20251107150146006](C:/Users/Tek44/AppData/Roaming/Typora/typora-user-images/image-20251107150146006.png)
+![image-20251107150146006](pic/image-20251107150146006.png)
 
 
 
@@ -68,15 +68,15 @@
 
 #### 1、性能优化和动画
 
-![image-20251107150907796](C:/Users/Tek44/AppData/Roaming/Typora/typora-user-images/image-20251107150907796.png)
+![image-20251107150907796](pic/image-20251107150907796.png)
 
 #### 2、测试和调试
 
-![image-20251107150913367](C:/Users/Tek44/AppData/Roaming/Typora/typora-user-images/image-20251107150913367.png)
+![image-20251107150913367](pic/image-20251107150913367.png)
 
 #### 3、打包和发布
 
-![image-20251107150919849](C:/Users/Tek44/AppData/Roaming/Typora/typora-user-images/image-20251107150919849.png)
+![image-20251107150919849](pic/image-20251107150919849.png)
 
 
 
