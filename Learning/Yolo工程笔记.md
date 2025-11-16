@@ -436,3 +436,414 @@ session：{'uid': 用户的id, 'name': 用户的名字}
       - 
    2. 实时监测页面
       - 
+
+
+
+## Date: 24-5-25
+
+代码截图：
+
+1. ```py
+   class BootstrapModelForm(forms.ModelForm):
+       bootstrap_exclude_fields = []
+   
+       def __init__(self, *args, **kwargs):
+           super().__init__(*args, **kwargs)
+           for name, field in self.fields.items():
+               if name in self.bootstrap_exclude_fields:
+                   continue
+               if field.widget.attrs:
+                   field.widget.attrs['class'] = 'form-control'
+                   if 'placeholder' not in field.widget.attrs:
+                       field.widget.attrs['placeholder'] = 							field.label
+               else:
+                   field.widget.attrs = {'class': 'form-control', 						'placeholder': field.label}
+   ```
+
+2. ```py
+   class MakeUser(BootstrapModelForm):
+       re_pwd = forms.CharField(label='确认密码', widget=forms.PasswordInput(attrs={'class': 'form-control'}))
+   
+       class Meta:
+           model = models.User
+           fields = ['name', 'pwd', 're_pwd']
+           widgets = {'pwd': forms.PasswordInput()}
+   
+       def clean_pwd(self):
+           md5_pwd = md5(self.cleaned_data['pwd'])
+           print(md5_pwd)
+           return md5_pwd
+   
+       def clean_re_pwd(self):
+           re_pwd = md5(self.cleaned_data['re_pwd'])
+           if re_pwd != self.cleaned_data['pwd']:
+               raise ValidationError("密码不一致")
+           return re_pwd
+   ```
+
+3. ```py
+   class CheckCookie(MiddlewareMixin):
+       def process_request(self, request):
+           if request.path_info == '/user/login/' or 							request.path_info == '/user/register/':
+               return
+   
+           info_dict = request.session.get('info')
+           print(info_dict)
+           if not info_dict:
+               return redirect('/user/login/')
+           elif request.get_full_path() == '/':
+               return redirect('/yolo/main/')
+           return
+   
+       def process_response(self, request, response):
+           return response
+   ```
+
+4. ```py
+   class SelectOption(object):
+       def __init__(self, request, folder_type, to_user_id):
+           self.set_obj_list = ( 											models.DetectSet.objects.filter(type=folder_type, 			  to_user_id=to_user_id))
+           self.option_list = []
+           if not self.set_obj_list:
+               coding = '<option selected>空</option>'
+               self.option_list.append(coding)
+   
+       def html(self):
+           if self.set_obj_list:
+               for obj in self.set_obj_list:
+                   coding = "<option value='{}'>{}									</option>".format(obj.id, obj.folder_name)
+                   self.option_list.append(coding)
+           option_code = mark_safe("".join(self.option_list))
+           return option_code
+   ```
+
+5. ```py
+   class ImgList(object):
+       def __init__(self, request, queryset):
+           self.request = request
+           self.queryset = queryset
+   
+           self.img_count = self.queryset.count()
+           row_count, div = divmod(int(self.img_count), 4)
+           if div:
+               row_count += 1
+           self.row_count = row_count
+           self.div = div
+   
+       def html(self):
+           self.coding_list = []
+           for_num = 0
+           start_html = ('<div class="row mb-2"><div class="col"><div class="card-group" style="display: flex;">')
+           end_html = '</div></div></div>'
+           for row in range(0, self.row_count):
+               self.coding_list.append(start_html)
+               for col in range(0, 4):
+                   if not for_num < self.img_count:
+                       col_hidden = ('<div class="card" 		style="flex: 1; visibility: hidden;"></div>')
+                       self.coding_list.append(col_hidden)
+                   else:
+                       img_obj = self.queryset[for_num]
+                       img_path = '/media/' + img_obj.img_path
+   
+                       col_card_html = ('<div class="card" style="flex: 1;">')
+                       col_img_html = (
+                           '<a class="a_img" href="{}"><img src="{}"class="card-img-top img-fluid edit_opacity"style="object-fit: cover;'
+                           ' height: 200px;" alt="..."></a>').format(img_path, img_path)
+                       if img_obj.is_detect == 0:
+                           small_type = 'warning'
+                           small_info = '未监测'
+                       else:
+                           small_type = 'success'
+                           small_info = '已监测'
+                       col_body_html = (
+                           '<div class="card-body" style="position: relative">'
+                           '<p class="card-text text-center edit_opacity">{}</p>'
+                           '<p class="card-text text-center" '
+                           'style="position: absolute; bottom: 3px;left: 41%;margin-bottom: 0">'
+                           '<span class="badge text-bg-{}">{}</span>'
+                           '</p><input type="checkbox" class="form-check-input img_checkbox" data-img-id="{}">'
+                           '</div></div>').format(img_obj.name, small_type, small_info, img_obj.id)
+                       self.coding_list.append(col_card_html)
+                       self.coding_list.append(col_img_html)
+                       self.coding_list.append(col_body_html)
+                   for_num += 1
+   
+               self.coding_list.append(end_html)
+   
+           img_list_code = mark_safe("".join(self.coding_list))
+           return img_list_code
+   ```
+
+6. ```py
+   class ImgPredict(object):
+       def __init__(self, set_id):
+           print('开始监测初始化')
+           # yolo参数
+           self.coco_classes = [...]  # coco数据集
+           self.model = YOLO('yolov8s.pt')
+           # 集合名
+           self.set_id = set_id
+           # 集合的文件地址
+           set_obj = models.DetectSet.objects.filter(pk=self.set_id).first()
+           self.folder_name = set_obj.get_user_folder_name()  # 图片的完整文件名
+           self.predict_folder = os.path.join(settings.MEDIA_ROOT, 'img_set', self.folder_name, 'predicted')  # 预测集路径
+           if not os.path.exists(self.predict_folder):
+               os.makedirs(self.predict_folder)
+           # 原图集化为字典数列[{id, 地址},{},...]
+           self.ori_img_dict_list = []
+           ori_img_obj_list = models.OriginImg.objects.filter(folder_name=self.set_id, is_detect=0)
+           for obj in ori_img_obj_list:
+               print(obj.id, obj.name, obj.img_path)
+               self.ori_img_dict_list.append({'id': obj.id, 'name': obj.name, 'img_path': obj.img_path})
+           print('监测初始化结束，开始监测')
+   
+       def start_predict(self):
+           for ori_img_dict in self.ori_img_dict_list:
+               print(ori_img_dict['id'], ori_img_dict['name'], ori_img_dict['img_path'])
+               ori_id = ori_img_dict['id']
+               name = ori_img_dict['name']
+               orin_img_path = ori_img_dict['img_path']
+               ori_source = os.path.join(settings.MEDIA_ROOT, orin_img_path)
+               ori_source = ori_source.replace('\\', '/')
+               print(ori_source)
+               results = self.model(ori_source)
+               for i, r in enumerate(results):
+                   # 保存预测图片
+                   im_bgr = r.plot()
+                   im_bgr = Image.fromarray(im_bgr[:, :, ::-1])
+                   predict_path = os.path.join(self.predict_folder, name)
+                   predict_path = predict_path.replace('\\', '/')
+                   r.save(filename=predict_path)
+                   # 保存到数据库
+                   xyxy = r.boxes.xyxy
+                   cls = r.boxes.cls
+                   print(cls)
+                   info_dict = {}
+                   info_list = []
+                   info_count = {}
+                   db_path = os.path.join('img_set', self.folder_name, 'predicted', name)
+                   db_path = db_path.replace('\\', '/')
+                   for num, cl in enumerate(cls):
+                       info_temp = {}
+                       xy_list = []
+                       cls_name = self.coco_classes[int(cl)]
+                       if cls_name in info_count:
+                           info_count[cls_name] += 1
+                       else:
+                           info_count[cls_name] = 1
+                       for j in range(4):
+                           xy_list.append(int(xyxy[num][j]))
+                       info_temp['name'] = cls_name
+                       info_temp['xyxy'] = xy_list
+                       info_list.append(info_temp)
+                   print(info_list)
+                   info_dict = {'info_count': info_count, 'info_list': info_list}
+                   creat_dict = {
+                       'name': name,
+                       'img_path': db_path,
+                       'detect_info': json.dumps(info_dict),
+                       'folder_name_id': self.set_id,
+                       'oring_img_id': ori_id,
+                   }
+                   models.PredictedImg.objects.create(**creat_dict)
+                   models.OriginImg.objects.filter(id=ori_id).update(is_detect=1)
+   
+           return True
+   ```
+
+7. ```py
+   # 获取全部监测信息
+   detections = Detections()
+   boxes = results[0].boxes.xywh.cpu()
+   xyxy = results[0].boxes.xyxy.cpu()
+   track_ids = results[0].boxes.id.int().cpu().tolist()
+   # 绘制监测框
+   annotated_frame = results[0].plot(line_width=2, conf=False)
+   for track_id, box, xy in zip(track_ids, boxes, xyxy):
+       x, y, w, h = box
+       track = track_history[track_id]
+       track.append((float(x), float(y)))  # x, y center point
+       if len(track) > 30:  # retain 90 tracks for 90 frames
+           track.pop(0)
+       # 存储当前帧监测信息
+       x1, y1, x2, y2 = xy
+       detections.add((x1, y1, x2, y2), None, None, track_id)
+       # 绘制跟踪线
+       if is_track:
+           points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
+           cv2.polylines(annotated_frame, [points], isClosed=False, color=(248, 75, 228), thickness=2)
+   ```
+
+8. ```py
+   def line_direction(pt1, pt2, pt):
+       # 获取pt点在pt1-pt2直线的哪一侧，返回1为一侧，-1为另一侧，0为在线上
+       x1, y1 = pt1.x, pt1.y
+       x2, y2 = pt2.x, pt2.y
+       x, y = pt.x, pt.y
+       return np.sign((x2 - x1) * (y - y1) - (y2 - y1) * (x - x1))
+   ```
+
+9. ```py
+   ## 0. 对每个物体进行处理
+       for xyxy, _, _, tracker_id in detections.detections:
+           ## 1. 获取监测数据
+           x1, y1, x2, y2 = xyxy
+           tracker_center = Point(x=(x1 + x2) / 2, y=(y1 + y2) / 2)
+           tracker_state_new = line_direction(pt1, pt2, tracker_center) >= 0 # 返回True和False，代表哪一侧
+           ## 2. 更新监测目标的当前信息:{'state': True/False, 'direction': 						  'up'/'down'/None}
+           ### 如果是新目标或者当前目标是之前消失的目标
+           if tracker_id not in tracker_state or tracker_state[tracker_id] is None:
+               tracker_state[tracker_id] = {'state': tracker_state_new, 'direction': None}
+               #### 如果在上一帧已存在这个目标 并且 上一帧这个目标信息不是为空 则继承信息
+               if tracker_id in pre_tracker_state and pre_tracker_state[tracker_id] is not None:
+                   tracker_state[tracker_id]['direction'] = ( pre_tracker_state[tracker_id]['direction'])
+           ### 如果在线侧不变，则停止修改该监测数据，继续检查下一个
+           elif tracker_state[tracker_id]['state'] == tracker_state_new:
+               continue
+           ### 如果在线侧改变，开始修改监测信息
+           else:
+               ### 如果物体原来在线上方，且新位置在线下方（从上往下）
+               if tracker_state[tracker_id]['state'] and not tracker_state_new:
+                   #### 只有在之前的方向不是下的时候计数，防止重复计算
+                   if tracker_state[tracker_id]['direction'] != 'down':
+                       down_count += 1
+                   tracker_state[tracker_id]['direction'] = 'down'
+               ### 从下往上
+               elif not tracker_state[tracker_id]['state'] and tracker_state_new:
+                   if tracker_state[tracker_id]['direction'] != 'up':
+                       up_count += 1
+                   tracker_state[tracker_id]['direction'] = 'up'
+   
+               tracker_state[tracker_id]['state'] = tracker_state_new
+       ## 3.保存已经消失的监测信息, 包括消失时的状态
+       for tracker_id in list(tracker_state.keys()):
+           if tracker_id not in [item[3] for item in detections.detections]:
+               pre_tracker_state[tracker_id] = tracker_state[tracker_id]
+               tracker_state[tracker_id] = None
+   
+       return up_count, down_count
+   ```
+
+10. ```py
+    while cap.isOpened():
+        success, frame = cap.read()
+        if success:
+            # 获取当前帧数
+            current_frame = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+    
+            # 检查是否达到了下一个固定进度的帧数范围
+            if current_frame % frame_range == 0:
+                # 计算当前进度
+                progress = current_frame / total_frames * 100
+                print(f'当前进度：{progress:.1f}%')
+                progress = f'{progress:.1f}'
+                self.send(progress)
+    ```
+
+11. ```py
+    # 运行追踪监测
+    device = 0 if torch.cuda.is_available() else 'cpu'
+    if is_all:
+        results = model.track(frame, persist=True, tracker='bytetrack.yaml', device=device)
+    else:
+        results = model.track(frame, persist=True, tracker='bytetrack.yaml', classes=is_detect_id,
+                              device=device)
+    ```
+
+12. ```py
+    # 绘制跟踪线
+    if is_track:
+        points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
+        cv2.polylines(annotated_frame, [points], isClosed=False, color=(248, 75, 228), thickness=2)
+    ```
+
+13. ```py
+    # 监测触线
+    if is_line:
+        # 画线
+        cv2.line(annotated_frame, (pt1.x, pt1.y), (pt2.x, pt2.y), (0, 0, 255), thickness=2)
+        up_count, down_count = detect_across_frame(detections, up_count, down_count, tracker_state,pre_tracker_state, pt1, pt2)
+        print(up_count, down_count)
+        text_draw = 'DOWN: ' + str(up_count) + ' , UP: ' + str(down_count)
+        annotated_frame = cv2.putText(img=annotated_frame, text=text_draw, org=(10, 50), fontFace=cv2.FONT_HERSHEY_SIMPLEX,fontScale=0.75, color=(0, 0, 255), thickness=2)
+    ```
+
+14. ```js
+    .then(function (stream) {
+        // 建立WebSocket连接
+        ws = new WebSocket('ws://127.0.0.1:8000/ws/realtime/' + SET_ID + '/');
+    
+        // 当WebSocket连接打开时
+        ws.onopen = function () {
+            console.log('WebSocket连接已打开。');
+    
+            // 每次摄像头画面帧更新时
+            var video = document.createElement('video');
+            video.srcObject = stream;
+            video.play();
+    
+            var canvas = document.createElement('canvas');
+            var ctx = canvas.getContext('2d');
+            // 在视频流加载后获取视频的宽高并应用于canvas
+            video.addEventListener('loadedmetadata', function () {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+            });
+            setInterval(function () {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                var imageData = canvas.toDataURL('image/jpeg', 0.8); // 将画面转换为JPEG格式
+                ws.send(imageData); // 发送画面数据到服务器
+            }, 1000 / 15); // 以每秒15帧的速度发送画面数据
+        };
+    })
+    ```
+
+15. ```py
+        def websocket_receive(self, text_data=None, bytes_data=None):
+            # 接收到的数据是图像数据的字符串形式
+            image_data = text_data['text']
+            # 将图像数据解码成 NumPy 数组
+            image_data = image_data.split(",")[1]  # 去掉 data URL 前缀部分
+            image_data = base64.b64decode(image_data)
+            # 将图像数据解码成 NumPy 数组
+            nparr = np.frombuffer(image_data, np.uint8)
+            frame_data = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            # OpenCV 处理：实时监测返回结果画面
+            processed_frame_data = self.real_time_detect(frame_data)
+            # 发送处理后的图像数据回客户端
+            self.send_video_stream(processed_frame_data)
+            pass
+    
+        def send_video_stream(self, detected_frame):
+            # 将帧数据编码为 JPEG 格式
+            _, buffer2 = cv2.imencode('.jpg', detected_frame)
+    
+            # 直接发送图像数据的字节
+            self.send(bytes_data=buffer2.tobytes())
+    ```
+
+16. ```js
+    ws.onmessage = function (event) {
+        if (typeof event.data === 'string') {
+            // 接收字符数据
+            DATA_TEXT = JSON.parse(event.data);
+            if ('name' in DATA_TEXT) {
+                const detect_name = DATA_TEXT['name']
+                if (detect_name in detected_list) {
+                    detected_list[detect_name] += 1
+                } else {detected_list[detect_name] = 1}
+            } else {DETECTED_NOW = DATA_TEXT}
+        } else if (event.data instanceof Blob) {
+            // 接收到的是二进制数据
+            var binaryData = event.data;
+            const blob = new Blob([binaryData], {type: 'image/jpeg'});
+            const imageUrl = URL.createObjectURL(blob);
+            $("#pre_camera_img").attr('src', imageUrl);
+        } else {
+            // 其他情况，不支持的数据类型
+            console.error('Unsupported data type');
+        }
+    };
+    ```
+
+17. 

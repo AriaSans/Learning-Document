@@ -968,10 +968,10 @@ CREATE TABLE app1_member(
     >      ```py
     >      # 创建一个字典，包含属性和对应的值
     >      data_dict = {'case1': 1, 'case2': 2, 'case3': 3}
-    >                
+    >                  
     >      # 将字典序列化为 JSON 字符串
     >      json_data = json.dumps(data_dict)
-    >                
+    >                  
     >      # 创建模型对象并保存到数据库中
     >      your_model_instance = YourModel.objects.create(data=json_data)
     >      ```
